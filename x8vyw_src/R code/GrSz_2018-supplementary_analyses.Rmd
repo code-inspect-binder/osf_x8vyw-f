@@ -1,0 +1,1360 @@
+---
+title: "Supplement to 'Mapping out particle placement in Englishes around the world'"
+author: "Jason Grafmiller and Benedikt Szmrecsanyi"
+date: ""
+output:
+  html_document: 
+    theme: default
+    highlight: pygments
+    df_print: paged 
+    toc: true
+    toc_float: true
+    number_sections: true
+    fig_caption: yes
+    css: resources/custom.css
+  pdf_document: default
+  word_document:
+    md_extensions: +example_lists+fancy_lists+simple_tables
+    pandoc_args: --smart
+    reference_docx: resources/lvc_template.docx
+bibliography: C:/Users/grafmilj/Dropbox/TeXfiles/main_library.bib
+csl: C:/Users/grafmilj/Dropbox/TeXfiles/unified-style-linguistics.csl
+---
+
+--------------------------
+
+```{r setup, include=FALSE}
+library(knitr)
+library(pander)
+# options for tables
+panderOptions('table.alignment.default', 'right')
+panderOptions('table.alignment.rownames', 'left')
+panderOptions('keep.trailing.zeros', TRUE)
+panderOptions("table.emphasize.rownames", FALSE)
+panderOptions("keep.line.breaks", TRUE)
+panderOptions("round", 2)
+panderOptions("table.split.table", Inf)
+
+opts_knit$set(root.dir = normalizePath('../')) # set working directory as root
+opts_chunk$set(cache = F,
+							 cache.path = "../cache/",
+							 fig.align = "center",
+							 # fig.width = 8,
+							 # fig.height = 5.5,
+							 fig.path = "../figures/",
+							 comment = NA,
+							 message = FALSE,
+							 warning = FALSE,
+							 error = F, 
+							 echo = F,
+							 eval = T,
+							 digits = 2
+							 )
+```
+
+```{r}
+auto_loads <- c("tidyverse", "reshape2", "forcats", "stringr", "glue",
+  "lubridate", "gridExtra", "JGmisc", "JGggplot", "JGrms", "party", "merTools", 
+  "edarf", "broom", "plotly", "ggsci")
+
+silent.load <- function(a.package){
+  suppressWarnings(suppressPackageStartupMessages(
+    library(a.package, character.only = TRUE)))
+}
+
+invisible(sapply(auto_loads, silent.load))
+```
+
+```{r}
+library(captioner)
+figs <- captioner(prefix = "Figure")
+tbls <- captioner(prefix = "Table")
+# define custom ggplot2 theme
+library(extrafont)
+loadfonts()
+cols <- ggsci::pal_jco("default")(3)
+theme_jg <- theme_set(theme_minimal())
+# increase size of axis text 
+# adjust strip title bg and text size
+# make title larger boldface and v-justified
+# move legend to bottom
+theme_jg <- theme_update(
+  text = element_text(family = "Open Sans"),
+	axis.text = element_text(size = rel(0.9), color="black"), 
+	plot.title = element_text(size = rel(1.25), 
+														margin = margin(0, 0, 10, 0)), 
+	strip.text = element_text(size = rel(.9)),
+	legend.position = 'bottom'
+	)
+```
+
+
+```{r}
+# Source the setup file and read in the dataframe.
+source("R/00_project_setup.R")
+pv <- readRDS("data/particle_verbs_17-04-2018.rds")
+# Set variety labels.
+vars <- c("GB", "CA", "NZ", "IE", "JA", "SG", "HK", "PH", "IN")
+# Set register labels
+regs <- c("spok.informal", "spok.formal", "writ.informal", "writ.formal",
+  "online")
+# Set genre category labels and reorder `Genre`.
+cats <- c("PrivateDia", "UnscriptMono", "PublicDia", "ScriptedMono",
+          "Letters", "CreativeWrit", "Blog", "GeneralWeb", "StudentWrit",
+          "Reportage", "PopularWrit", "InstructWrit", "PersuasiveWrit",
+          "AcademicWrit")
+```
+
+
+
+This document provides supplementary description of the analysis presented in Grafmiller & Szmrecsanyi (2018) "Mapping out particle placement in Englishes around the world. A case study in comparative sociolinguistic analysis" (henceforth G&S). It contains further discussion of the motivations behind our methods, along with details of the statistical anaylyses reported in G&S. 
+
+The complete dataset, along with documentation, annotation manual, and code for analysis can be freely downloaded at the following link.
+
+> Open Science repository: [https://osf.io/x8vyw/](https://osf.io/x8vyw/).
+
+
+
+
+
+# The data
+
+We investigate particle placement in 9 varieties of English (Table 1) using data from two 
+corpora, the International Corpus of English (ICE) and the Global Corpus of 
+Web-based English (GloWbE). We examine four varieties belonging to the
+Inner Circle [@Kachru1985] of world Englishes (GB, CA, NZ, and IE), which are formed of 
+people for whom English is a first or native language (ENL). We also examine
+5 Outer Circle varieties, which are formed of people for whom English is a second 
+language (ESL). We acknowledge that the ENL/ESL division elides a great deal 
+of inter- and intra-varietal complexity and variation, and we adopt 
+labels mainly as terms of convenience---albeit ones with some degree of theoretical 
+validity---for the description of our results. As we discuss below here and in G&S, we find quite robust differences between exactly these two variety groups.
+
+**Table 1: Nine varieties sampled in G&S**
+
+------------------  --------------  -----------------
+GB = Great Britain  CA = Canada     IE = Ireland 
+NZ = New Zealand    JA = Jamaica    SG = Singapore
+HK = Hong Kong      IN = India      PH = Philippines
+------------------  --------------  -----------------
+
+The distribution of the PV variants across the varieties and corpora is shown
+in Figure 1.
+
+```{r data_plot, fig.width = 10, fig.height=6}
+pv %>%
+  dplyr::count(Variety, Corpus, Response) %>%
+  mutate(Variety = factor(Variety, levels = vars),
+    Response = fct_recode(Response, Split = "Discontinuous"),
+    Corpus = factor(Corpus, levels = c("ICE", "GloWbE"))) %>%
+  group_by(Variety, Corpus) %>%
+  mutate(
+    Prop = n/sum(n),
+    pos = c(.95, .05)) %>%
+  ggplot(aes(Variety, Prop)) +
+  geom_bar(aes(fill = Response), stat = "identity",
+    width = .7, col = "black") +
+  geom_text(aes(label = n, y = pos),
+    col = rep(c("white", "black"), 18), size = 3) +
+  facet_wrap(~ Corpus, ncol = 2) +
+  labs(x = "", y = "Proportion of tokens") +
+  scale_fill_jco(name = "") +
+  theme_minimal() + theme(legend.position = 'top',
+      axis.text = element_text(color = "black", size = rel(1.2)),
+      axis.title = element_text(color = "black", size = rel(1.2)),
+      legend.text = element_text(color = "black", size = rel(1)),
+      strip.text = element_text(size = rel(1.2)))
+```
+
+**Figure 1: Distribution of PV variants by corpus and variety. Numbers represent the number of observed variants and bars represent the proportion of all tokens in the respective corpus and variety**
+
+<br>
+
+
+Description of the extraction and annotation of PVs is summarized in G&S, and detailed extensively in the annotation manual liked to above. We leave those matters 
+to interested readers and focus here on the motivations and methods of our analyses. 
+
+# Methodological considerations
+
+The modern standard approach to statistical analysis of sociolinguistic variables, i.e. generalized linear mixed modeling (GLMM), can provide insight into the extent to which the effects of different predictors on particle placement vary across the nine varieties studied here. GLMMs offer important advantages over older methods, e.g. Varbrul, as GLMMs are explicitly designed to incorporate variability at multiple levels of data structure, such as verb-specific preferences, which we can model through the inclusion of random effects terms.
+
+Another asset of GLMMs is that we can use them to directly test hypotheses about external predictors, e.g. **Variety**, and their interactions with other internal predictors, e.g. direct object length, concreteness. However, when using such models in corpus-based research it is important to note that these hypotheses must be explicitly specified in the model a priori, i.e. as the model formula which must be explicitly specified in the analysis. In practice, corpus-based variationist research typically proceeds by testing for as many interactions as possible, and then focusing on those that pass some significance threshold, usually *p* < .05 [see e.g. @Bresnan2008; @Szmrecsanyi2016a; @Szmrecsanyi2017; @Wolk2013]. To simplify computation and interpretation, models are often subjected to some process of model selection, where predictors and interactions are added or removed if they fail to meet some predetermined criterion. This practice is controversial however, as it has been shown to inflate individual predictor effect sizes and significance [e.g. @Harrell2001; @Johnson2010]. A newer method of model averaging [@Burnham2002] has been used with some success in linguistics [@Barth2014; @Kuperman2012], but the method is not without its own issues [see @Cade2015]. 
+
+So we must begin our analysis by asking: what should our (initial) model structure be? Fitting model structures involving maximal random effects structures [@Barr2013] and multiple fixed effects interactions unfortunately turned out to be unfeasible given the complexity of our full dataset. We were unsuccessful at fitting even a minimally adequate GLMM limited to only 2-way interactions with **Variety** and the other fixed-effects predictors. Additionally, models with complex random effects structures, e.g. by-verb or by-particle random slopes for **Variety**, consistently failed to converge. Taking a cue from recent corpus-based studies of the same stripe (e.g. Bernaisch et al. 2014; Deshors & Gries 2016; Szmrecsanyi et al. 2016), we limited our investigation of the full dataset to the more tractable random forest approach. 
+
+We present the results of our supplementary random forest analysis first before turning to the by-variety comparative analysis discussed in G&S [below](#compsoc).
+
+
+# <a name="randfor"></a>Random forest analysis
+
+The random forest method [see @Breiman2001; @Strobl2009] involves the creation of many hundreds or even thousands of decision tree models based on random subsamples of both the data and predictors. For a given observation, each tree “votes” for a given outcome, and the outcome with the most votes wins. Due to the random sampling process, random forests are quite accurate, and are robust to statistical issues common to studies of observational linguistic data, e.g. data sparseness and predictor nonlinearities [@Matsuki2016]. Most standard statistical packages also provide measures of predictor importance that are much less affected by data multicollinearity [see e.g. @Liaw2002; @Strobl2009]. For these reasons, the random forest method is increasingly becoming a standard component of the variationist analyst’s toolkit [@Baayen2013; @Bernaisch2014; @Deshors2016; @Szmrecsanyi2016a; @Tagliamonte2012a].
+
+Here we present in detail the results of a supplementary random forest model fit to the entire dataset. The analysis suggests that there is a considerable degree of stability in the effects of internal constraints on particle placement across varieties of English, and where we do find regional variation in our predictors, such variation largely takes the shape of an ENL vs. ESL/EFL divide. We find some evidence of cross-varietal interactions with internal predictors, though these internal interaction effects appear less important than the effects of the functional and/or stylistic context. Split PVs are more likely in spoken and/or interpersonal language, and this tendency is much stronger in ENL than in ESL varieties (Figure 3). 
+
+We also find solid evidence for the overall influence of several internal predictors in the random forests model (Figure 2). As expected, use of the split variant decreases as the length of the direct object increases, while it increases with compositional PVs and PVs where the surprisal of the particle given the verb is highest, which we interpret as a possible measure of the semantic independence of the verb. In addition, we find that the probability of the split variant increases when a post-modifying PP is present, and when the direct object is given, definite, and/or concrete. These patterns are all in accordance with prior research. 
+
+## Fitting the model
+
+The forest model was fit using the `cforest()` function in R's `party` package 
+[@Hothorn2006; @Strobl2007; @Strobl2008]. This package uses conditional
+inference splitting methods [@Hothorn2006] for growing trees, rather than the impurity 
+reduction metrics (e.g. Gini, Entropy) common to the classification 
+tree algorithms used in other packages such as `randomForest` and `ranger`. See
+@Tagliamonte2012a for an introduction.
+
+```{r forest_data, cache = T, echo = F, eval = T}
+cforest1 <- readRDS("data/cforest1_17-04-2018.rds")
+
+# Get model predictions:
+preds <- readRDS("data/cforest1_preds_17-04-2018.rds")
+
+# Get predicted probability of the discontinuous variant.
+pv$probs <- sapply(preds, function(x) return(x[2])) %>% as.vector
+```
+
+The random forest model formula is show below. 
+
+```{r eval = F, echo = T}
+Response ~ Variety + Genre + DirObjWordLength + Semantics + 
+  DirObjConcreteness + DirObjGivenness + DirObjDefiniteness +
+  DirObjThematicity + DirectionalPP + CV.binary + Surprisal.P +
+  Surprisal.V + Rhythm + PrimeType
+```
+
+The forest was grown on 1500 trees (`ntree = 1500`) sampling 4 predictors at each node (`mtry = 4`). Model controls and hyperparameters were otherwise set to the function defaults.
+
+```{r forest_acc, cache = T}
+# Calculate accuracy measures.
+# C index and Somer's Dxy
+acc <- Hmisc::somers2(pv$probs, as.numeric(pv$Response) - 1) %>% 
+  round(3)
+# Percent correctly predicted.
+percor <- length(which(pv$Response == ifelse(pv$probs > .5, 'Discontinuous', 'Continuous')))/nrow(pv)
+baseline <- max(table(pv$Response))/nrow(pv)
+```
+
+The model fits the data well (Table 2), predicting particle placement significantly better than chance (*p~binom~* $\approx$ 0).
+
+**Table 2: Fit statistics for random forest model**
+
+```{r forest_acc_tab}
+data.frame(
+  C = acc[1],
+  Dxy = acc[2],
+  Perc.correct = round(100*percor,1),
+  Baseline = round(100*baseline,1)
+) %>% `rownames<-`("Stats")
+```
+
+
+## Variable importance
+
+For evaluating the relative importance of our predictors, we use a methed based on the 
+area under the curve (AUC), which is equivalent to the index of concordance *C*.
+This method is less biased for strongly unbalanced data, i.e. data where size 
+of response classes differ considerably [@Janitza2013].
+
+```{r dummy_varimp, echo = F}
+varimp <- readRDS("data/cforest1_varimp_17-04-2018.rds") %>% 
+  as.data.frame() %>% 
+  rename(varimp = '.') %>% 
+  mutate(pred = rownames(.) %>% factor)
+```
+
+```{r varimp_pl}
+ggplot(varimp, aes(x = fct_reorder(pred, varimp), y = varimp)) +
+  geom_hline(yintercept = 0) +
+  coord_flip() +
+  geom_segment(aes(xend = fct_reorder(pred, varimp), yend = 0), 
+    color = cols[1]) +
+  geom_point(size = 3, color = cols[1]) + 
+  labs(x = "", y = "Permutation variable importance")
+```
+
+**Figure 2: Variable importance measures of each predictor in random forest model**
+
+We find that across the dataset as a whole, **Surprisal.P** and the length of the
+direct object play the most important role in predicting particle placement. Other 
+internal constraints such as semantics, and the presence of a directional PP are 
+somewhat weaker. Surprisingly, the accessibility related constraints such as **DirObjDefiniteness**,
+**DirObjThematicity**, and **DirObjGivenness** have relatively little explanatory
+power in our model, contrary to findings else where [e.g. @Dehe2002;@Gries2003;@Haddican2012]. 
+The particularly weak effect of givenness may be attributed to our inclusion of 
+other predictors not normally considered, i.e. Thematicity and Surprisal, which 
+could be capturing much more fine-grained information than our binary givenness measure. 
+This could be the result of our automatic coding procedure for givenness, 
+which is suboptimal for fully capturing information status. 
+This remains an area in need of further investigation.
+
+More pertinent to our study are the relatively high ranking effects of external 
+predictors **Genre** and **Variety**. There is considerable 
+variability in particle placement across both genres and varieties, and the
+random foest model shows that this variability is not simply reducible to influences of the internal linguistic predictors we consider here. This amount of regional and stylistic variability 
+in particle placement has to date been underappreciated [though see @Haddican2012; @Zipp2012].
+
+One drawback of variable importance plots is that they give no information about
+the details of a given predictor's influence, i.e. what direction of an effect 
+it has, or how it interacts with other predictors. To investigate the predictors
+more closely then, we turn to so-called *partial dependency plots*, which provide
+visualizations of (sets of) predictors' effects on particle placement.
+
+## Partial dependency plots
+
+```{r}
+pd_list <- readRDS('data/pd_list_17-04-2018.rds')
+pd_list <- plyr::llply(pd_list, 
+  .fun = function(x){ 
+    x <- x %>% 
+      mutate(Variety = factor(Variety, levels = vars))
+    return(x)
+    })
+theme <- theme_update(
+  legend.position = "bottom",
+  plot.title = element_text(size = rel(1.1)))
+theme_set(theme)
+```
+
+To examine the effects of an individual predictor (and its relation to other predictors), 
+we plot the partial dependence of the probability of the split PV variant on that predictor or 
+predictors, averaging over the values of the other predictors. This method is similar in spirit to partial effects plots derived from regression models, though these should not be interpreted as significance tests.
+
+Since we are dealing with a binary reponse, we plot only the predicted probability of the split (V-O-P) variant in the plots below. Additionally, we are chiefly concerned with cross-varietal differences, thus we focus only on interactions of **Variety** with the other predictors and do not explore potential interactions among internal predictors, though we note that the random forest model does potential capture such effects [though see @Wright2016]. 
+
+Looking at the interaction between **Genre** and **Variety** (Figure 3), it's clear that the biggest stylistic shifts in the use of PVs occurs in the ENL varieties, where the split variant is far more frequent in less formal interpersonal genres, i.e. spoken dialogues, personal letters and creative writing. The patterns across the genres are largely the same for all varieties, e.g. unscripted monologues appear to feature some of the highest use of split PVs everywhere, however the differences between genres are far more 
+pronounced in the ENL varieties than in the ESL varieties. 
+
+
+```{r fig.height=7}
+# genre
+pd_list[[1]] %>% 
+  mutate(Genre = factor(Genre, levels = cats),
+         Variety = factor(Variety, levels = vars)) %>% 
+ggplot(aes(Genre, Discontinuous,
+      group = Variety, color = Variety)) +
+  geom_line() +
+  geom_point(size = 3) + 
+  labs(x = '', y = 'Probability of V-O-P', title= 'Genre')  +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = c(1,1), legend.justification = c(1,1))
+```
+
+**Figure 3: Partial dependency plot of Genre by Variety**
+
+Note also that the stylistic trends cross-cut modality, as the relatively formal scripted monologues ("ScriptedMono") show far fewer uses of the split variant. These spoken texts are more similar to persuasive and instructional writing than to other kinds of spoken language. Lastly we note that the two web-based genres, "Blog" and "GeneralWeb", consistently show the lowest use of split PVs in all varieties. 
+While it is true that some of the ICE data is 10-20 years older than that in GloWbE, 
+it seems unlikely that all varieties have undergone an identical shift in PV usage over the past 20 years or so [but see @Tagliamonte2016], especially given evidence for recent changes in the opposite direction [@Haddican2012]. We suspect therefore that this difference in GloWbE is due to differences in medium (traditional vs online writing), differences in the compilation methods [see discussion in @Davies2015 and replies], or to other stylistic factors related to these different usage contexts.
+
+Turning to the cross-varietal patterns in the internal constraints (Figures 4 & 5), a couple 
+generalizations can be made. First, it appears that the internal constraints all behave
+as predicted by the literature, and this applies to all varieties. That is, the 
+effects all go in the hypothesized direction, e.g. longer direct objects disfavor the 
+use of the split variant while the presence of a directional PP favors it. This includes
+the effects of surprisal (Figure 4), where we predicted that less surprising, i.e. more predictable, verb-particle combinations would be biased toward the continuous variant.
+Language users are more likely to choose the continuous variant with verb-particle pairs that cooccur very frequently. We thus interpret surprisal essentially as a measure of the 
+degree of syntactic/semantic co-dependency or compositionality.
+
+```{r}
+# Surprisal.P
+d <- subset(pd_list[[10]], Surprisal.P < 9 & Surprisal.P > 1)
+d2 <- d %>% 
+  group_by(Variety) %>% 
+  summarise(max = max(Surprisal.P),
+    prob = max(Discontinuous))
+
+p_surpP <- ggplot(d, aes(Surprisal.P, Discontinuous,
+      group = Variety, color = Variety)) +
+  geom_smooth(method = 'loess', se = F) +
+  # geom_text(data = d2, aes(x = max, y = prob, label = Variety), 
+  #   nudge_x = .3, vjust = 0) +
+  theme(legend.position = 'top') +
+  labs(x = 'Surprisal.P', y = 'Probability of V-O-P', title = 'Surprisal.P')
+```
+
+```{r}
+# Surprisal.V
+d <- subset(pd_list[[11]], Surprisal.V < 15 & Surprisal.V > 1)
+d2 <- d %>% 
+  group_by(Variety) %>% 
+  summarise(max = max(Surprisal.V),
+    prob = max(Discontinuous))
+
+p_surpV <- ggplot(d,
+    aes(Surprisal.V, Discontinuous,
+      group = Variety, color = Variety)) +
+  geom_smooth(method = 'loess', se = F) +
+  # geom_text(data = d2, aes(x = max, y = prob, label = Variety), 
+  #   nudge_x = .3, vjust = 0) +
+  theme(legend.position = 'top') +
+  labs(x = 'Surprisal.P', y = 'Probability of V-O-P', title = 'Surprisal.V')
+```
+
+```{r}
+grid.share.legend(p_surpP, p_surpV)
+```
+
+**Figure 4: Partial dependency plot of surprisal measures by Variety**
+
+Again the largest difference in these plots is between the ENL and ESL varieties, 
+and it would seem that this distinction alone is what underlies the high importance ranking
+assigned to **Variety** in Figure 2. Effects of the internal predictors are largely
+parallel across all varieties, with the possible exception of **Semantics**, which
+appears to have a slightly stronger effect in the ENL varieties than in the others.
+
+
+```{r}
+# Semantics
+p_sem <- ggplot(pd_list[[3]],
+    aes(Semantics, Discontinuous, group = Variety, color = Variety)) +
+  geom_line() +
+  geom_point(size = 3) + 
+  theme(legend.position = 'right') +
+  labs(x = '', y = 'Probability of V-O-P', title = 'Semantics')
+```
+
+
+```{r}
+p_conc <- ggplot(pd_list[[4]],
+    aes(DirObjConcreteness, Discontinuous,
+      group = Variety, color = Variety)) +
+  geom_line() +
+  geom_point(size = 3) + 
+  # theme(legend.position = 'right') +
+  labs(x = '', y = 'Probability of V-O-P', title = 'DirObjConcreteness')
+```
+
+
+```{r}
+p_giv <- ggplot(pd_list[[5]],
+    aes(DirObjGivenness, Discontinuous,
+      group = Variety, color = Variety)) +
+  geom_line() +
+  geom_point(size = 3) + 
+  # theme(legend.position = 'right') +
+  labs(x = '', y = 'Probability of V-O-P', title = 'DirObjGivenness')
+```
+
+
+```{r}
+p_def <- ggplot(pd_list[[6]],
+    aes(DirObjDefiniteness, Discontinuous,
+      group = Variety, color = Variety)) +
+  geom_line() +
+  geom_point(size = 3) + 
+  # theme(legend.position = 'right') +
+  labs(x = '', y = 'Probability of V-O-P', title = 'DirObjDefiniteness')
+```
+
+```{r}
+d <- subset(pd_list[[7]], DirObjThematicity > 0 & DirObjThematicity < 17)
+d2 <-  d %>% 
+  group_by(Variety) %>% 
+  summarise(max = max(DirObjThematicity),
+    prob = max(Discontinuous))
+
+p_them <- ggplot(d, 
+    aes(DirObjThematicity, Discontinuous,
+      group = Variety, color = Variety)) +
+  geom_smooth(method = 'loess', se = F) +
+  geom_text(data = d2, aes(x = max, y = prob, label = Variety), 
+    nudge_x = .3, vjust = 0) +
+  theme(legend.position = 'top') +
+  labs(x = 'DirObjThematicity', y = 'Probability of V-O-P', title = 'DirObjThematicity')
+```
+
+
+
+```{r}
+p_dirPP <- ggplot(pd_list[[8]],
+    aes(DirectionalPP, Discontinuous,
+      group = Variety, color = Variety)) +
+  geom_line() +
+  geom_point(size = 3) + 
+  # theme(legend.position = 'right') +
+  labs(x = '', y = 'Probability of V-O-P', title = 'DirectionalPP')
+```
+
+```{r}
+p_cv <- ggplot(pd_list[[9]],
+    aes(CV.binary, Discontinuous,
+      group = Variety, color = Variety)) +
+  geom_line() +
+  geom_point(size = 3) + 
+  # theme(legend.position = 'right') +
+  labs(x = '', y = 'Probability of V-O-P', title = 'CV.binary')
+```
+
+```{r}
+p_prime <- ggplot(pd_list[[13]],
+    aes(PrimeType, Discontinuous,
+      group = Variety, color = Variety)) +
+  geom_line() +
+  geom_point(size = 3) + 
+  # theme(legend.position = 'right') +
+  labs(x = '', y = 'Probability of V-O-P', title = 'PrimeType')
+```
+
+```{r}
+# DirObjLength
+p_len <- ggplot(pd_list[[2]],
+    aes(DirObjWordLength, Discontinuous, group = Variety, color = Variety)) +
+  geom_line() +
+  geom_point(size = 3) +
+  labs(x = 'Length of DirObj in words', y = 'Probability of V-O-P',
+    title= 'DirObjLength') +
+  # theme(legend.position = 'top') + 
+  scale_x_continuous(breaks = 1:6)
+```
+
+```{r}
+grid.share.legend <- function(...,
+  ncol = length(list(...)),
+  nrow = 1,
+  position = c("bottom", "right")) {
+  # See: https://github.com/tidyverse/ggplot2/wiki/Share-a-legend-between-two-ggplot2-graphs
+  require(grid)
+  require(gridExtra)
+  plots <- list(...)
+  position <- match.arg(position)
+  g <- ggplotGrob(plots[[1]] + theme(legend.position = position))$grobs
+  legend <- g[[which(sapply(g, function(x) x$name) == "guide-box")]]
+  lheight <- sum(legend$height)
+  lwidth <- sum(legend$width)
+  gl <- lapply(plots, function(x) x + theme(legend.position="none"))
+  gl <- c(gl, ncol = ncol, nrow = nrow)
+
+  combined <- switch(position,
+    "bottom" = arrangeGrob(do.call(arrangeGrob, gl),
+      legend, ncol = 1, heights = unit.c(unit(1, "npc") - lheight, lheight)),
+    "right" = arrangeGrob(do.call(arrangeGrob, gl),
+      legend, ncol = 2, widths = unit.c(unit(1, "npc") - lwidth, lwidth)))
+  # grid.newpage()
+  grid.draw(combined)
+}
+```
+
+```{r fig.height=10, fig.width=8}
+grid.share.legend(p_cv, p_dirPP, p_prime,
+                  p_giv, p_def, p_conc,
+                  p_sem, p_len, ncol = 3, nrow = 3)
+```
+
+**Figure 5: Partial dependency plots of predictors by Variety**
+
+# By-Variety Comparative Analysis
+
+## <a name="compsoc"></a>Adapting the Comparative Sociolinguistic method
+
+As discussed in G&S, the comparative sociolinguistic method involves the evaluation of three 'lines of evidence' derived from separate models fit to different datasets, and these lines of evidence represent natural applications of regression modeling [@Poplack2001; @Tagliamonte2012a; @Tagliamonte2013]. A first line of evidence involves ranking the different (sets of) constraints, or factor groups, according to the strength of their influence on the variable: Do the constraints have the same relative ranking across the datasets? The second line of evidence, statistical significance, involves a comparison of the constraints that are determined by the model to have a significant effect on the variable: Do the models of the different datasets share the same set of significant constraints? The third line of evidence consists of comparing the magnitude and direction of the significant constraints across datasets: Are the directions of the constraints (for continuous or binary factors) the same; are the orders of the levels within a categorical constraint (the 'constraint hierarchy' in variationist terms) the same? Are the effects of some constraints stronger in one dataset than others?
+
+While this method has clear intuitive appeal, there are a few technical concerns that must be considered [see also @Claes2016, 85]. One concern lies in the way constraints’ relative explanatory contributions (relative strength) are assessed. In Varbrul analyses, relative importance is measured as the range between the highest and lowest factor weight for a given factor group. Modern statistical tools such as R (or Rbrul) now allow for much greater flexibility in statistical modeling. For example, modern regression modeling tools allow for continuous as well as categorical predictors. However, the effect sizes of continuous and categorical predictors, as expressed in the regression coefficients, cannot be directly compared to one another unless certain transformations are applied to the model inputs [see e.g. @Gelman2008a]. At the same time, predictors with many levels (factors) are more likely to have larger effect ranges simply by virtue of their having more levels; binary factors are thus more likely to be ranked lower by mere chance alone. Finally, effect size estimates of individual predictors in regression models are highly sensitive to correlations with other predictors, a problem known as (multi)collinearity. Unless care is taken to decorrelate predictors before model fitting, or to assess multicollinearity post-fitting, inferences about predictor importance based on coefficient estimates (ranges) can be quite unreliable. 
+
+A second problem lies in the (over)reliance on statistical significance as a threshold for (dis)similarity. Significance, as with effect size, can be highly sensitive to covariation among predictors. More importantly, comparing the significance of predictors across models fit to different datasets is ill-advised since statistical significance is dependent on sample size as well as the distribution of the predictor’s values in the data (Anderson, Burnham & Thompson 2000; Hubbard & Lindsay 2008), a problem that has also been acknowledged by comparative sociolinguists (Poplack & Tagliamonte 2001:93; Tagliamonte 2013:152, n.5).  Given that probabilistic linguistic knowledge is derived from experience, it is highly unlikely that the effect of any predictor is exactly 0, which is the null hypothesis that significance tests typically assume. The same principle of course applies to interaction effects in a single model: it is doubtful that a given predictor’s effect is exactly the same in any given set of two or more unique populations. Given enough data, we could show that every constraint or interaction in every variety/dataset is significant, albeit with a very small effect size. But we are not aware of any model of grammar, usage-based or otherwise, that considers what a minimum effect size threshold should be for determining when two communities' grammars (or individuals’ grammars for that matter) are different "enough". In light of this, a technique that assumes a more nuanced approach to assessing (dis)similarity in probabilistic variation grammars seems desirable (see also Tagliamonte 2013). 
+
+
+## Generalized linear mixed models
+
+In this section we provide details of the procedure for creating and evaluting 
+the GLMMs presented in G&S.
+
+```{r glmm_list, cache = F}
+# glmm_list <- readRDS("data/glmm_list.rds")
+glmm_list <- readRDS("data/glmm_list_final.rds")
+```
+
+
+### Model formulas
+
+The fixed effects formula for each of our models is as follows.
+
+```{r}
+Response ~ Register + 
+  DirObjWordLength +
+  Semantics +
+  DirObjConcreteness +
+  DirObjGivenness +
+  DirObjDefiniteness +
+  DirObjThematicity +
+  DirectionalPP +
+  CV.binary +
+  Surprisal.P +
+  Surprisal.V +
+  Rhythm +
+  PrimeType
+```
+
+The random effects formula for each of our models is as follows.
+
+```{r}
+Response ~ FIXED_EFFECTS +
+  (1|Verb) + 
+  (1|Particle) + 
+  (1|VerbPart) + 
+  (1|Genre)
+```
+
+The above model structure was fit to each dataset. No further testing (e.g. via 
+likelihood ratio tests) was conducted to assess random effects. While some 
+models resulted in (near) singular fits with some random effects variances at 
+or very near 0. All terms were kept in the models to keep the structures identical.
+
+
+### Predictor coding and standardization
+
+All model inputs were standardized following procedures recommended by 
+@Gelman2007a and @Gelman2008a. Continuous predictor inputs were centered around zero by 
+subtracting the mean from each value, and then scaled by dividing by 2 standard deviations. 
+Binary predictors were converted to numeric values (0 or 1) and centered to have a mean of zero. No scaling was applied to binary inputs. 
+
+Multinomial predictors, **Register** and **PrimeType**, were not standardized. 
+**Register** was sum coded, with each individual coefficient representing deviation from 
+the mean across all register levels. **PrimeType** was treatment coded, with 'none', i.e. no prior PV present, as the reference level to which the other two levels, 'split' or 'continuous', were
+compared. 
+
+
+### Model evaluation 
+
+Here we present various model fit diagnostics for each of our models. 
+*C* represents the concordance statistic, *Dxy* is Somers's $D_{xy}$, and *AICc* is 
+the Akaike Information Criterion corrected for sample size and number of model parameters [@Burnham2002]. The statistic *kappa* is a measure of data multicollinearity [@Baayen2008a].
+
+#### Model fits
+
+**`r tbls("tab1", "Summary statistics for by-variety models")`**
+
+```{r glmm_stats, cache = T}
+# Check model stats
+d1 <- glmm_list %>% plyr::ldply(.fun = glance)
+
+# check model predictions
+d2 <- glmm_list %>% plyr::ldply(.fun = scores.mer)
+
+cbind(d2[,1:2], d1[,3:7], d2[,3:8])
+```
+
+#### Overdispersion
+
+We also check for overdispersion. That is, we check whether there is greater 
+variability, i.e. statistical dispersion, than we would expect assuming that our
+response is binomially distributed. 
+
+We use an approximate estimate of overdispersion based on a chi-squared test of the
+sum of squared Pearson residuals with degrees of freedom equal to the residual 
+degrees of freedom in the model. Significant deviation from a theoretical $\chi^2$ 
+distribution ($p < .05$) can be considered strong evidence of overdispersion.
+
+For more details and R code, see 
+[http://bbolker.github.io/mixedmodels-misc/glmmFAQ.html#overdispersion](http://bbolker.github.io/mixedmodels-misc/glmmFAQ.html#overdispersion) 
+
+**`r tbls("tab2", "Overdispersion measures for by-variety models")`**
+
+```{r overdisp}
+glmm_list %>% 
+  plyr::ldply(.fun = overdisp.mer)
+```
+
+
+#### Multicollinearity
+
+The variance inflation factor (VIF) provides a measure of how much the variance in 
+the estimate of a given predictor is increased due to that predictor being 
+correlated with other predictors in the model. High VIFs suggest unreliable estimates.
+Opinions vary as to what should be considered a worrisomely high VIF, from as 
+high as 10 to as low as 3 (see O'Brian 2007; Zuur et al. 2010), but we believe
+the VIFs in our models are within a reasonable range.
+
+
+```{r}
+# Check VIFs
+VIF_mer <- function (fit) {
+  ## adapted from rms::vif
+  v <- vcov(fit)
+  nam <- names(fixef(fit))
+  ## exclude intercepts
+  ns <- sum(1 * (nam == "Intercept" | nam == "(Intercept)"))
+  if (ns > 0) {
+    v <- v[-(1:ns), -(1:ns), drop = FALSE]
+    nam <- nam[-(1:ns)]
+  }
+  d <- diag(v)^0.5
+  v2 <- diag(solve(v/(d %o% d)))
+  names(v2) <- nam
+  v2 <- sort(v2, decreasing = TRUE)
+  return(v2)
+}
+```
+
+
+**`r tbls("tab3", "Variance Inflation Factors for each model predictor")`**
+
+```{r vif_tab}
+d <- plyr::ldply(glmm_list, .fun = VIF_mer)[,-1] %>% 
+  t %>% 
+  as.data.frame
+names(d) <- names(glmm_list)
+rownames(d) <- rownames(d) %>% 
+  str_replace_all("([cz]\\.|\\(|\\))", "") %>% 
+  str_replace_all("S.1", "Spok.Inf") %>% 
+  str_replace_all("S.2", "Spok.For") %>% 
+  str_replace_all("S.3", "Writ.Inf") %>% 
+  str_replace_all("S.4", "Writ.For")
+round(d, 2) %>% 
+  as.data.frame()
+```
+
+
+<!-- ```{r} -->
+<!-- # Check for overdispersion -->
+<!-- ldply(glmm_list, .fun = overdisp.mer) %>%  -->
+<!--   pander() -->
+<!-- ``` -->
+
+<br>
+
+### Random effects {.tabset}
+
+Here we present details on the random effects for each model. For each variety, we provide plots of the distributions of the Best Linear Unbiased Predictors (BLUPs) for each group factor in the model. These represent the adjustments to the overall log odds (i.e. the model intercept) for each genre, verb, particle, and verb-particle pair. Gray dots represent levels that are indistinguishable from zero.
+
+For interested readers, we also provide the estimated value for each group level, that is each individual genre, verb, etc. in the tables following the plots. Positive values relfect greater bias for the split V-Object-P order, negative values reflect greater bias for the continuous V-P-Object order.
+
+To view results for a specific variety, click the tabs below.
+
+
+#### Great Britain
+
+**Great Britain**
+
+```{r gbre, cache= T, fig.cap = "Figure 1: Distribution of BLUPs for GB model"}
+GB_reEx <- REsim(glmm_list[["GB"]])
+# sort the labels
+groups <- unique(GB_reEx$groupFctr) %>% sort
+merTools::plotREsim(GB_reEx)
+```
+
+```{r eval = F}
+plist <- vector("list")
+for(i in 1:4){
+  g <- groups[i]
+  p <- GB_reEx %>% 
+    dplyr::filter(groupFctr == g) %>% 
+    mutate(groupID = fct_reorder(groupID, mean),
+      upper = mean + 1.96*sd,
+      lower = mean - 1.96*sd,
+      sig = ifelse(lower > 0 | upper < 0, "sig", "ns")) %>% 
+    ggplot(aes(groupID, mean)) +
+      geom_hline(yintercept = 0, color = "red") +
+      geom_errorbar(aes(ymin = mean - 1.96*sd, ymax = mean + 1.96*sd), 
+        color = "gray", width = 0) +
+      geom_point(color = "#337ab7") + 
+      # scale_color_manual(guide = "none", values = c("gray", "#337ab7")) +
+      labs(y = "Effect range", x = g) +
+      theme(axis.text.x = element_blank())
+  plist[[i]] <- p
+}
+```
+
+```{r eval = F}
+ggplotly(plist[[1]], tooltip = c("x", "y"))
+```
+
+```{r eval = F}
+ggplotly(plist[[2]], tooltip = c("x", "y"))
+```
+
+```{r eval = F}
+ggplotly(plist[[3]], tooltip = c("x", "y"))
+```
+
+
+
+**Table 3: Genre BLUPs for GB model.**
+
+```{r}
+GB_reEx %>% 
+  dplyr::filter(groupFctr == "Genre") %>% 
+  dplyr::rename("Genre" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 4: Particle BLUPs for GB model.**
+
+```{r}
+GB_reEx %>% 
+  dplyr::filter(groupFctr == "Particle") %>% 
+  dplyr::rename("Particle" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 5: Verb BLUPs for GB model.**
+
+```{r}
+GB_reEx %>% 
+  dplyr::filter(groupFctr == "Verb") %>% 
+  dplyr::rename("Verb" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 6: Verb-Particle pair BLUPs for GB model.**
+
+```{r}
+GB_reEx %>% 
+  dplyr::filter(groupFctr == "VerbPart") %>% 
+  dplyr::rename("Verb-Particle" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+<br>
+
+#### Canada
+
+**Canada**
+
+```{r cache= T, fig.cap="Figure 2: Distribution of BLUPs for CA model"}
+CA_reEx <- REsim(glmm_list[["CA"]])
+# plot the terms
+merTools::plotREsim(CA_reEx)
+```
+
+**Table 7: Genre BLUPs for CA model.**
+  
+```{r}
+CA_reEx %>% 
+  dplyr::filter(groupFctr == "Genre") %>% 
+  dplyr::rename("Genre" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 8: Particle BLUPs for CA model.**
+  
+```{r}
+CA_reEx %>% 
+  dplyr::filter(groupFctr == "Particle") %>% 
+  dplyr::rename("Particle" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 9: Verb BLUPs for CA model.**
+  
+```{r}
+CA_reEx %>% 
+  dplyr::filter(groupFctr == "Verb") %>% 
+  dplyr::rename("Verb" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 10: Verb-Particle pair BLUPs for CA model.**
+  
+```{r}
+CA_reEx %>% 
+  dplyr::filter(groupFctr == "VerbPart") %>% 
+  dplyr::rename("Verb-Particle" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+<br>
+
+#### New Zealand
+
+**New Zealand**
+
+```{r cache= T, fig.cap="Figure 3: Distribution of BLUPs for NZ model"}
+NZ_reEx <- REsim(glmm_list[["NZ"]])
+# plots
+merTools::plotREsim(NZ_reEx)
+```
+**Table 11: Genre BLUPs for NZ model.**
+  
+```{r}
+NZ_reEx %>% 
+  dplyr::filter(groupFctr == "Genre") %>% 
+  dplyr::rename("Genre" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 12: Particle BLUPs for NZ model.**
+  
+```{r}
+NZ_reEx %>% 
+  dplyr::filter(groupFctr == "Particle") %>% 
+  dplyr::rename("Particle" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 13: Verb BLUPs for NZ model.**
+  
+```{r}
+NZ_reEx %>% 
+  dplyr::filter(groupFctr == "Verb") %>% 
+  dplyr::rename("Verb" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 14: Verb-Particle pair BLUPs for NZ model.**
+  
+```{r}
+NZ_reEx %>% 
+  dplyr::filter(groupFctr == "VerbPart") %>% 
+  dplyr::rename("Verb-Particle" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+<br>
+
+#### Ireland
+
+**Ireland**
+
+```{r cache= T, fig.cap="Figure 4: Distribution of BLUPs for IE model"}
+IE_reEx <- REsim(glmm_list[["IE"]])
+# plots
+merTools::plotREsim(IE_reEx)
+```
+**Table 15: Genre BLUPs for IE model.**
+  
+```{r}
+IE_reEx %>% 
+  dplyr::filter(groupFctr == "Genre") %>% 
+  dplyr::rename("Genre" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 16: Particle BLUPs for IE model.**
+  
+```{r}
+IE_reEx %>% 
+  dplyr::filter(groupFctr == "Particle") %>% 
+  dplyr::rename("Particle" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 17: Verb BLUPs for IE model.**
+  
+```{r}
+IE_reEx %>% 
+  dplyr::filter(groupFctr == "Verb") %>% 
+  dplyr::rename("Verb" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 18: Verb-Particle pair BLUPs for IE model.**
+  
+```{r}
+IE_reEx %>% 
+  dplyr::filter(groupFctr == "VerbPart") %>% 
+  dplyr::rename("Verb-Particle" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+<br>
+
+#### Jamaica
+
+**Jamaica**
+
+```{r cache= T, fig.cap="Figure 5: Distribution of BLUPs for JA model"}
+JA_reEx <- REsim(glmm_list[["JA"]])
+merTools::plotREsim(JA_reEx)
+```
+**Table 19: Genre BLUPs for JA model.**
+  
+```{r}
+JA_reEx %>% 
+  dplyr::filter(groupFctr == "Genre") %>% 
+  dplyr::rename("Genre" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 20: Particle BLUPs for JA model.**
+  
+```{r}
+JA_reEx %>% 
+  dplyr::filter(groupFctr == "Particle") %>% 
+  dplyr::rename("Particle" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 21: Verb BLUPs for JA model.**
+  
+```{r}
+JA_reEx %>% 
+  dplyr::filter(groupFctr == "Verb") %>% 
+  dplyr::rename("Verb" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 22: Verb-Particle pair BLUPs for JA model.**
+  
+```{r}
+JA_reEx %>% 
+  dplyr::filter(groupFctr == "VerbPart") %>% 
+  dplyr::rename("Verb-Particle" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+<br>
+
+#### Singapore
+
+**Singapore**
+
+```{r cache= T, fig.cap="Figure 6: Distribution of BLUPs for SG model"}
+SG_reEx <- REsim(glmm_list[["SG"]])
+merTools::plotREsim(SG_reEx)
+```
+**Table 23: Genre BLUPs for SG model.**
+  
+```{r}
+SG_reEx %>% 
+  dplyr::filter(groupFctr == "Genre") %>% 
+  dplyr::rename("Genre" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 24: Particle BLUPs for SG model.**
+  
+```{r}
+SG_reEx %>% 
+  dplyr::filter(groupFctr == "Particle") %>% 
+  dplyr::rename("Particle" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 25: Verb BLUPs for SG model.**
+  
+```{r}
+SG_reEx %>% 
+  dplyr::filter(groupFctr == "Verb") %>% 
+  dplyr::rename("Verb" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 26: Verb-Particle pair BLUPs for SG model.**
+  
+```{r}
+SG_reEx %>% 
+  dplyr::filter(groupFctr == "VerbPart") %>% 
+  dplyr::rename("Verb-Particle" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+<br>
+
+#### Hong Kong
+
+**Hong Kong**
+
+```{r cache= T, fig.cap="Figure 7: Distribution of BLUPs for HK model"}
+HK_reEx <- REsim(glmm_list[["HK"]])
+merTools::plotREsim(HK_reEx)
+```
+
+**Table 27: Genre BLUPs for HK model.**
+  
+```{r}
+HK_reEx %>% 
+  dplyr::filter(groupFctr == "Genre") %>% 
+  dplyr::rename("Genre" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 28: Particle BLUPs for HK model.**
+  
+```{r}
+HK_reEx %>% 
+  dplyr::filter(groupFctr == "Particle") %>% 
+  dplyr::rename("Particle" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 29: Verb BLUPs for HK model.**
+  
+```{r}
+HK_reEx %>% 
+  dplyr::filter(groupFctr == "Verb") %>% 
+  dplyr::rename("Verb" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 30: Verb-Particle pair BLUPs for HK model.**
+  
+```{r}
+HK_reEx %>% 
+  dplyr::filter(groupFctr == "VerbPart") %>% 
+  dplyr::rename("Verb-Particle" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+<br>
+
+#### Philippines
+
+**Philippines**
+
+```{r cache= T, fig.cap="Figure 8: Distribution of BLUPs for PH model"}
+PH_reEx <- REsim(glmm_list[["PH"]])
+merTools::plotREsim(PH_reEx)
+```
+
+**Table 31: Genre BLUPs for PH model.**
+  
+```{r}
+PH_reEx %>% 
+  dplyr::filter(groupFctr == "Genre") %>% 
+  dplyr::rename("Genre" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 32: Particle BLUPs for PH model.**
+  
+```{r}
+PH_reEx %>% 
+  dplyr::filter(groupFctr == "Particle") %>% 
+  dplyr::rename("Particle" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 33: Verb BLUPs for PH model.**
+  
+```{r}
+PH_reEx %>% 
+  dplyr::filter(groupFctr == "Verb") %>% 
+  dplyr::rename("Verb" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 34: Verb-Particle pair BLUPs for PH model.**
+  
+```{r}
+PH_reEx %>% 
+  dplyr::filter(groupFctr == "VerbPart") %>% 
+  dplyr::rename("Verb-Particle" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+<br>
+
+#### India
+
+**India**
+
+```{r cache= T, fig.cap="Figure 9: Distribution of BLUPs for IN model"}
+IN_reEx <- REsim(glmm_list[["IN"]])
+merTools::plotREsim(IN_reEx)
+```
+
+**Table 35: Genre BLUPs for IN model.**
+  
+```{r}
+IN_reEx %>% 
+  dplyr::filter(groupFctr == "Genre") %>% 
+  dplyr::rename("Genre" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 36: Particle BLUPs for IN model.**
+  
+```{r}
+IN_reEx %>% 
+  dplyr::filter(groupFctr == "Particle") %>% 
+  dplyr::rename("Particle" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 37: Verb BLUPs for IN model.**
+  
+```{r}
+IN_reEx %>% 
+  dplyr::filter(groupFctr == "Verb") %>% 
+  dplyr::rename("Verb" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+**Table 38: Verb-Particle pair BLUPs for IN model.**
+  
+```{r}
+IN_reEx %>% 
+  dplyr::filter(groupFctr == "VerbPart") %>% 
+  dplyr::rename("Verb-Particle" = groupID) %>% 
+  arrange(mean) %>% 
+  dplyr::select(-c(1,3,5))
+```
+
+<br>
+
+
+## Deriving Probabilistic Distances
+
+### Distance matrices
+
+```{r varimp_data}
+varimp_glmms <- readRDS("data/glmm_varimps_final.rds")
+```
+
+
+For the two lines of evidence derived from the GLMMs, we calculate two distance matrices, one derived from a table of the AICc based constraint rankings across varieties (Table 39), and one from the table of the GLMM coefficients themselves (Table 40). These were calculated using a permutation procedure modelled after the permutation variable importance measures used in the random forest analysis [see also @Baayen2011]. 
+
+**Table 39: Variable importance rankings for by-variety GLMMs**
+
+```{r varimp_tab}
+varimp_glmms %>% 
+  round(1)
+```
+
+**Table 40: Coefficient estimates for by-variety GLMMs**
+
+```{r coef_df}
+# create quick function for extracting fixed effects coefficients
+coeffs <- function(x) summary(x)$coefficients[,1]
+
+# Coefficients
+coef_df <- glmm_list %>%
+  plyr::ldply(.fun = coeffs, .id = "Variety") %>% 
+  `rownames<-`(.$Variety) %>% 
+  select(-Variety)
+names(coef_df) <- names(coef_df) %>% 
+  str_replace_all("([cz]\\.|\\(|\\))", "") %>% 
+  str_replace_all("1", ".Spok.Inf") %>% 
+  str_replace_all("2", ".Spok.For") %>% 
+  str_replace_all("3", ".Writ.Inf") %>% 
+  str_replace_all("4", ".Writ.For")
+t(coef_df) %>% 
+  round(3) %>% 
+  as.data.frame()
+```
+
+Alternative visualization techniques allow us to inspect the data from different angles, but the methods general identify the same key patterns. We find clear Inner vs. Outer Circle groupings in the coefficient-based distances, with the position of Singapore English being somewhat in dispute. The picture is les clear with the ranking-based distances. The heirachrical clustering suggests a possible split between varieties with British vs. non-British orientations, as did the neighbornet diagram, though the MDS plot suggests that these groupings may be less robust that the cluster model(s) imply. Considering that the distances are based on ranking correlations of relatively few data points, we find that conclusions drawn from this line of evidence should be treated with extra caution. Nevertheless, the two distance matrices do show a moderate degree of correlation (*r* = .58, *p* < 0.01), so we believe both lines of evidence are worth exploring in a given analysis. 
+
+
+
+**Table 41: Spearman correlations of variable importance rankings for by-variety GLMMs**
+
+```{r vmp_cor}
+cor(t(varimp_glmms), method = "spearman") %>% 
+  round(3) %>% 
+  as.data.frame()
+```
+
+**Table 42: Distance matrix based on variable importance rankings for by-variety GLMMs**
+
+```{r vmp_dist}
+vmp_dist <- 1 - cor(t(varimp_glmms), method = "spearman") 
+vmp_dist  %>% 
+  round(3) %>% 
+  as.data.frame()
+```
+
+To calculate a distance matrix reflecting differences in coefficients (Table 43) we use the Euclidean distance measure [see e.g., @Aldenderfer1984, 25], which defines the distance between two varieties as the square root of the sum of all squared coefficient differentials. 
+
+**Table 43: Distance matrix based on coefficient estimates for by-variety GLMMs**
+
+```{r coef_dist}
+coef_dist <- dist(coef_df, diag = T, upper = T)
+as.matrix(coef_dist) %>% 
+  as.data.frame() %>% 
+  round(3) %>% 
+  as.data.frame()
+```
+
+### Visualization
+
+To visualize probabilistic distances, G&S use NeighborNet diagrams  created from the `phangorn` package in R [@Schliep2011]. For details of the method We refer readers to the code (`04_prob_distance_analysis.R`) provided in the project repository, and for conceptual discussion and interpretation of the results we refer to the relevant sections in the main paper and references cited there in.
+
+Other methods can also be used to provide alternative visualizations, for example heierachical cluster analysis (Figures 6 & 7), or multidimensional scaling (Figures 8 & 9).
+
+```{r coef_clust}
+hclust(coef_dist, method = "ward.D2") %>% 
+  plot(main = "Coefficient-based dendrogram")
+```
+
+**Figure 6: Cluster diagram of inter-varietal distances based on the GLMM coefficients (effect size)**
+
+```{r}
+hclust(as.dist(vmp_dist), method = "ward.D2") %>% 
+  plot(main = "Ranking-based dendrogram")
+```
+
+**Figure 7: Cluster diagram of inter-varietal distacne based on the constraint rankings**
+
+```{r}
+coef_mds <- cmdscale(coef_dist, eig = TRUE, k = 3)
+
+# Make dataframe for plotting.
+coef_mds_df <- as.data.frame(coef_mds[[1]])
+names(coef_mds_df) <- c("x", "y", "z")
+coef_mds_df$Variety <- rownames(coef_mds_df)
+
+vmp_mds <- cmdscale(as.dist(vmp_dist), eig = TRUE, k = 3)
+vmp_mds_df <- as.data.frame(vmp_mds[[1]])
+names(vmp_mds_df) <- c("x", "y", "z")
+vmp_mds_df$Variety <- rownames(vmp_mds_df)
+```
+
+```{r}
+library(plotly)
+
+plot_ly(coef_mds_df,
+  type = "scatter3d", mode = "markers",
+  x = ~x, y = ~y, z = ~z, text = ~Variety) %>%
+  add_text(textfont = list(size = 16, color = "black"), textposition = "top right") %>%
+  layout(showlegend = F, title = "Coefficient-based MDS")
+```
+
+**Figure 7: 3D Multidimensional scaling map based on inter-varietal distances based on the GLMM coefficients (effect size)**
+
+```{r}
+plot_ly(vmp_mds_df,
+  type = "scatter3d", mode = "markers",
+  x = ~x, y = ~y, z = ~z, text = ~Variety) %>%
+  add_text(textfont = list(size = 16, color = "black"), textposition = "top right") %>%
+  layout(showlegend = F, title = "Ranking-based MDS")
+```
+
+
+Alternative visualization techniques allow us to inspect the data from different angles, but the methods general identify the same key patterns. We find clear Inner vs. Outer Circle groupings in the coefficient-based distances, with the position of Singapore English being somewhat in dispute. The picture is les clear with the ranking-based distances. The heirachrical clustering suggests a possible split between varieties with British vs. non-British orientations, as did the neighbornet diagram, though the MDS plot suggests that these groupings may be less robust that the cluster model(s) imply. Considering that the distances are based on ranking correlations of relatively few data points, we find that conclusions drawn from this line of evidence should be treated with extra caution. Nevertheless, the two distance matrices do show a moderate degree of correlation (*r* = .58, *p* < 0.01), so we believe both methods are worth exploring. 
+
+
+----------------------------
+
+---
+nocite: | 
+  @Zuur2010; @OBrian2007; @Baayen2008a; @Gelman2007a; @Gelman2008a; @Harrell2015b; @Hubbard2008; @Anderson2000; @Poplack2001; @Tagliamonte2013; 
+...
+
+## References
+
+
+
+
